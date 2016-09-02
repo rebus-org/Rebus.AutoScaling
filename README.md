@@ -6,4 +6,16 @@ Provides an experimental auto-scaling extension for [Rebus](https://github.com/r
 
 ---
 
+The auto-scaling extension will add/remove worker threads as necessary, depending on some criteria.
 
+You enable it like this:
+
+	Configure.With(...)
+		.(...)
+		.Options(o =>
+		{
+			o.EnableAutoScaling(10);
+		})
+		.Start();
+
+in order to enable auto-scaling, adding up to 10 worker threads when things heat up.
