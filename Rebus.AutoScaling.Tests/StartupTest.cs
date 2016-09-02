@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using Rebus.Activation;
@@ -11,7 +10,7 @@ using Rebus.Transport.InMem;
 namespace Rebus.AutoScaling.Tests
 {
     [TestFixture]
-    public class SimpleTest : FixtureBase
+    public class StartupTest : FixtureBase
     {
         BuiltinHandlerActivator _activator;
         WorkerCounter _workerCounter;

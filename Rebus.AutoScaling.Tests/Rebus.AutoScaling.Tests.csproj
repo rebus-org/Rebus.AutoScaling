@@ -64,7 +64,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="SimpleTest.cs" />
+    <Compile Include="StartupTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WorkerCounter.cs" />
   </ItemGroup>
