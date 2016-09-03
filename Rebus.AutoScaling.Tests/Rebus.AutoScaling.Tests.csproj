@@ -64,9 +64,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AssumptionAboutNumberOfWorkers.cs" />
     <Compile Include="CanScaleUpWhenDoingCpuBoundWork.cs" />
     <Compile Include="StartupTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TestSetPoint.cs" />
     <Compile Include="WorkerCounter.cs" />
   </ItemGroup>
   <ItemGroup>

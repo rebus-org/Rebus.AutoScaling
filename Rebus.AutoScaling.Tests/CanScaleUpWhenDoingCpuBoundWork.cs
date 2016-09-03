@@ -8,6 +8,8 @@ using Rebus.Config;
 using Rebus.Tests.Contracts;
 using Rebus.Tests.Contracts.Utilities;
 using Rebus.Transport.InMem;
+using Timer = System.Timers.Timer;
+
 #pragma warning disable 1998
 
 namespace Rebus.AutoScaling.Tests
@@ -17,6 +19,7 @@ namespace Rebus.AutoScaling.Tests
     {
         BuiltinHandlerActivator _activator;
         WorkerCounter _workerCounter;
+        ListLoggerFactory _listLoggerFactory;
 
         protected override void SetUp()
         {
@@ -24,11 +27,14 @@ namespace Rebus.AutoScaling.Tests
 
             Using(_activator);
 
+            _listLoggerFactory = new ListLoggerFactory(outputToConsole: true);
+
             Configure.With(_activator)
+                .Logging(l => l.Use(_listLoggerFactory))
                 .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
                 .Options(o =>
                 {
-                    o.EnableAutoScaling(10);
+                    o.EnableAutoScaling(maxNumberOfWorkers: 10);
                 })
                 .Start();
 
@@ -41,6 +47,8 @@ namespace Rebus.AutoScaling.Tests
         [Test]
         public async Task AutoScalingSavesTheDay()
         {
+            _workerCounter.ReadingAdded += Console.WriteLine;
+
             var messageCount = 10;
             var counter = new SharedCounter(messageCount);
 
@@ -49,7 +57,7 @@ namespace Rebus.AutoScaling.Tests
                 // stall the worker thread for five seconds
                 var threadId = Thread.CurrentThread.ManagedThreadId;
                 Console.WriteLine($"Thread {threadId} waiting... ");
-                Thread.Sleep(5000);
+                Thread.Sleep(10000);
                 Console.WriteLine($"Thread {threadId} done!");
                 counter.Decrement();
             });
@@ -58,8 +66,14 @@ namespace Rebus.AutoScaling.Tests
                 .Select(number => _activator.Bus.SendLocal($"THIS IS MESSAGE {number}")));
 
             // 10 * 5 seconds will take about 50 s to process serially - auto-scaling to the resque!!
-
             counter.WaitForResetEvent(30);
+
+            Console.WriteLine(new string('+', 100));
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine(string.Join(Environment.NewLine, _listLoggerFactory));
         }
     }
 }
