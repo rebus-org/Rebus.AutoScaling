@@ -64,10 +64,12 @@ namespace Rebus.AutoScaling
             if (transportMessage == null)
             {
                 Interlocked.Exchange(ref _lastNullReceiveTime, ticks);
+                Interlocked.Exchange(ref _successiveReceivesWithMessage, 0);
             }
             else
             {
                 Interlocked.Exchange(ref _lastNullReceiveTime, 0);
+                Interlocked.Increment(ref _successiveReceivesWithMessage);
             }
 
             return transportMessage;
@@ -77,6 +79,7 @@ namespace Rebus.AutoScaling
 
         long _lastReceiveCallTime;
         long _lastNullReceiveTime;
+        long _successiveReceivesWithMessage;
 
         IBus _bus;
 
@@ -137,6 +140,11 @@ namespace Rebus.AutoScaling
             var itHasBeenLongSinceLastAttemptedReceive = elapsedSinceLastRead > TimeSpan.FromSeconds(1);
 
             if (itHasBeenLongSinceLastAttemptedReceive) return ScaleAction.AddWorker;
+
+            var successiveReceivesWithMessage = Interlocked.Read(ref _successiveReceivesWithMessage);
+            var receivedManyMessagesInSuccesion = successiveReceivesWithMessage > 100;
+
+            if (receivedManyMessagesInSuccesion) return ScaleAction.AddWorker;
 
             return ScaleAction.NoChange;
         }

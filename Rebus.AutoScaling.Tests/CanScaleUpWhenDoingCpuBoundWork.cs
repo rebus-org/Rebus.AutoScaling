@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +9,6 @@ using Rebus.Config;
 using Rebus.Tests.Contracts;
 using Rebus.Tests.Contracts.Utilities;
 using Rebus.Transport.InMem;
-using Timer = System.Timers.Timer;
 
 #pragma warning disable 1998
 
@@ -27,7 +27,7 @@ namespace Rebus.AutoScaling.Tests
 
             Using(_activator);
 
-            _listLoggerFactory = new ListLoggerFactory(outputToConsole: true);
+            _listLoggerFactory = new ListLoggerFactory(outputToConsole: false);
 
             Configure.With(_activator)
                 .Logging(l => l.Use(_listLoggerFactory))
@@ -43,9 +43,43 @@ namespace Rebus.AutoScaling.Tests
             Using(_workerCounter);
         }
 
-
+        /*
+         
+2016-09-04T12:26:29: * (1)
+2016-09-04T12:26:30: * (1)
+2016-09-04T12:26:31: * (1)
+2016-09-04T12:26:32: * (1)
+2016-09-04T12:26:33: * (1)
+2016-09-04T12:26:34: ** (2)
+2016-09-04T12:26:35: **** (4)
+2016-09-04T12:26:36: **** (4)
+2016-09-04T12:26:37: ***** (5)
+2016-09-04T12:26:38: ****** (6)
+2016-09-04T12:26:39: ******** (8)
+2016-09-04T12:26:40: ********* (9)
+2016-09-04T12:26:41: ********* (9)
+2016-09-04T12:26:42: ********* (9)
+2016-09-04T12:26:43: ********* (9)
+2016-09-04T12:26:50: ******** (8)
+2016-09-04T12:26:51: ******* (7)
+2016-09-04T12:26:52: ****** (6)
+2016-09-04T12:26:53: ****** (6)
+2016-09-04T12:26:54: ***** (5)
+2016-09-04T12:26:55: **** (4)
+2016-09-04T12:26:56: *** (3)
+2016-09-04T12:26:57: ** (2)
+2016-09-04T12:26:58: * (1)
+2016-09-04T12:26:59: * (1)
+2016-09-04T12:27:00: * (1)
+2016-09-04T12:27:01: * (1)
+2016-09-04T12:27:02: * (1)
+2016-09-04T12:27:03: * (1)
+2016-09-04T12:27:04: * (1)             
+             
+             
+        */
         [Test]
-        public async Task AutoScalingSavesTheDay()
+        public async Task AutoScalingSavesTheDay_SlowHandler()
         {
             _workerCounter.ReadingAdded += Console.WriteLine;
 
@@ -62,18 +96,71 @@ namespace Rebus.AutoScaling.Tests
                 counter.Decrement();
             });
 
+            Thread.Sleep(TimeSpan.FromSeconds(3));
+
             await Task.WhenAll(Enumerable.Range(0, messageCount)
                 .Select(number => _activator.Bus.SendLocal($"THIS IS MESSAGE {number}")));
 
-            // 10 * 5 seconds will take about 50 s to process serially - auto-scaling to the resque!!
+            // 10 * 10 seconds will take about 100 s to process serially - auto-scaling to the resque!!
             counter.WaitForResetEvent(30);
 
-            Console.WriteLine(new string('+', 100));
+            Thread.Sleep(TimeSpan.FromSeconds(13));
+
+            CleanUpDisposables();
+
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine();
             Console.WriteLine();
-            Console.WriteLine(string.Join(Environment.NewLine, _listLoggerFactory));
+            Console.WriteLine();
+
+            var readings = _workerCounter.Readings
+                .GroupBy(r => r.Time.RoundTo(TimeSpan.FromSeconds(1)))
+                .Select(g => new WorkerCounter.Reading(g.Key, g.Average(r => r.WorkersCount)));
+
+            Console.WriteLine(string.Join(Environment.NewLine, readings));
+        }
+
+        [Test]
+        public async Task AutoScalingSavesTheDay_ManyMessages()
+        {
+            _activator.Bus.Advanced.Workers.SetNumberOfWorkers(0);
+
+            _workerCounter.ReadingAdded += Console.WriteLine;
+
+            var messageCount = 1000000;
+            var counter = new SharedCounter(messageCount);
+
+            _activator.Handle<string>(async str =>
+            {
+                counter.Decrement();
+            });
+
+            Thread.Sleep(TimeSpan.FromSeconds(3));
+
+            await Task.WhenAll(Enumerable.Range(0, messageCount)
+                .Select(number => _activator.Bus.SendLocal($"THIS IS MESSAGE {number}")));
+
+            _activator.Bus.Advanced.Workers.SetNumberOfWorkers(1);
+
+            // 10 * 10 seconds will take about 100 s to process serially - auto-scaling to the resque!!
+            counter.WaitForResetEvent(30);
+
+            Thread.Sleep(TimeSpan.FromSeconds(13));
+
+            CleanUpDisposables();
+
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine();
+
+            var readings = _workerCounter.Readings
+                .GroupBy(r => r.Time.RoundTo(TimeSpan.FromSeconds(1)))
+                .Select(g => new WorkerCounter.Reading(g.Key, g.Average(r => r.WorkersCount)));
+
+            Console.WriteLine(string.Join(Environment.NewLine, readings));
         }
     }
 }
