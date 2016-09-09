@@ -32,8 +32,8 @@
     <DocumentationFile>bin\Release\Rebus.AutoScaling.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Rebus, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Rebus.2.0.0-a9\lib\NET452\Rebus.dll</HintPath>
+    <Reference Include="Rebus, Version=2.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Rebus.2.0.0-b02\lib\NET45\Rebus.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
@@ -49,12 +49,14 @@
     <Compile Include="AutoScaler.cs" />
     <Compile Include="AutoScalingConfigurationExtensions.cs" />
     <Compile Include="Properties\AssemblyInfo_Patch.cs" />
+    <None Include="packages.config" />
     <None Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SetPoint.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
-    <None Include="Rebus.AutoScaling.nuspec" />
+    <None Include="Rebus.AutoScaling.nuspec">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
