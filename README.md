@@ -1,4 +1,4 @@
-# Rebus.TODO
+# Rebus.AutoScaling
 
 [![install from nuget](https://img.shields.io/nuget/v/Rebus.AutoScaling.svg?style=flat-square)](https://www.nuget.org/packages/Rebus.AutoScaling)
 
