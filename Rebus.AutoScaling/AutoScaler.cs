@@ -25,7 +25,7 @@ namespace Rebus.AutoScaling
             if (rebusLoggerFactory == null) throw new ArgumentNullException(nameof(rebusLoggerFactory));
             if (asyncTaskFactory == null) throw new ArgumentNullException(nameof(asyncTaskFactory));
             if (busFactory == null) throw new ArgumentNullException(nameof(busFactory));
-            _logger = rebusLoggerFactory.GetCurrentClassLogger();
+            _logger = rebusLoggerFactory.GetLogger<AutoScaler>();
             _transport = transport;
             _maximumNumberOfWorkers = maximumNumberOfWorkers;
             _busFactory = busFactory;
