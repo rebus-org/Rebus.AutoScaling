@@ -2,15 +2,15 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Timers;
 using Rebus.Bus;
+using Timer = System.Threading.Timer;
 
 namespace Rebus.AutoScaling.Tests
 {
     public class WorkerCounter : IDisposable
     {
         readonly IBus _bus;
-        readonly Timer _timer = new Timer(1000);
+        readonly Timer _timer;
         readonly ConcurrentQueue<Reading> _readings = new ConcurrentQueue<Reading>();
 
         public WorkerCounter(IBus bus)
@@ -18,8 +18,7 @@ namespace Rebus.AutoScaling.Tests
             if (bus == null) throw new ArgumentNullException(nameof(bus));
 
             _bus = bus;
-            _timer.Elapsed += (o, ea) => AddReading();
-            _timer.Start();
+            _timer = new Timer(_ => AddReading(), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
         }
 
         public IEnumerable<Reading> Readings => _readings.ToList();
