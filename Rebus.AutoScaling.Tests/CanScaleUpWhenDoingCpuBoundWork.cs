@@ -144,9 +144,9 @@ namespace Rebus.AutoScaling.Tests
             _activator.Bus.Advanced.Workers.SetNumberOfWorkers(1);
 
             // 10 * 10 seconds will take about 100 s to process serially - auto-scaling to the resque!!
-            counter.WaitForResetEvent(30);
+            counter.WaitForResetEvent(40);
 
-            Thread.Sleep(TimeSpan.FromSeconds(13));
+            Thread.Sleep(TimeSpan.FromSeconds(8));
 
             CleanUpDisposables();
 
