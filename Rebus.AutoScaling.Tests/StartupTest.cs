@@ -6,6 +6,8 @@ using Rebus.Activation;
 using Rebus.Config;
 using Rebus.Tests.Contracts;
 using Rebus.Transport.InMem;
+// ReSharper disable RedundantArgumentDefaultValue
+// ReSharper disable ArgumentsStyleLiteral
 
 namespace Rebus.AutoScaling.Tests
 {
@@ -25,7 +27,7 @@ namespace Rebus.AutoScaling.Tests
                 .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
                 .Options(o =>
                 {
-                    o.EnableAutoScaling(10);
+                    o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1);
                 })
                 .Start();
 

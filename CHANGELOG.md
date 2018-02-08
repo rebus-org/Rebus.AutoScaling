@@ -20,3 +20,7 @@
 
 * Update to Rebus 4
 * Add .NET Core support (netstandard1.6)
+
+## 4.1.0
+
+* Make the adjustment interval (the interval with which a worker is either added/removed, depending on activity level) configurable. Default is 10 s.

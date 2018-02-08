@@ -19,17 +19,18 @@ namespace Rebus.AutoScaling
         readonly ILog _logger;
         readonly IAsyncTask _task;
 
-        public AutoScaler(ITransport transport, IRebusLoggerFactory rebusLoggerFactory, int maximumNumberOfWorkers, IAsyncTaskFactory asyncTaskFactory, Func<IBus> busFactory)
+        bool _disposed;
+
+        public AutoScaler(ITransport transport, IRebusLoggerFactory rebusLoggerFactory, int maximumNumberOfWorkers, IAsyncTaskFactory asyncTaskFactory, Func<IBus> busFactory, int adjustmentIntervalSeconds)
         {
-            if (transport == null) throw new ArgumentNullException(nameof(transport));
             if (rebusLoggerFactory == null) throw new ArgumentNullException(nameof(rebusLoggerFactory));
             if (asyncTaskFactory == null) throw new ArgumentNullException(nameof(asyncTaskFactory));
-            if (busFactory == null) throw new ArgumentNullException(nameof(busFactory));
+            
             _logger = rebusLoggerFactory.GetLogger<AutoScaler>();
-            _transport = transport;
+            _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _maximumNumberOfWorkers = maximumNumberOfWorkers;
-            _busFactory = busFactory;
-            _task = asyncTaskFactory.Create("AutoScale", Tick, intervalSeconds: 1);
+            _busFactory = busFactory ?? throw new ArgumentNullException(nameof(busFactory));
+            _task = asyncTaskFactory.Create("AutoScale", Tick, intervalSeconds: adjustmentIntervalSeconds);
         }
 
         public void Initialize()
@@ -40,8 +41,17 @@ namespace Rebus.AutoScaling
 
         public void Dispose()
         {
-            _logger.Info("Stopping auto-scaler");
-            _task.Dispose();
+            if (_disposed) return;
+
+            try
+            {
+                _logger.Info("Stopping auto-scaler");
+                _task.Dispose();
+            }
+            finally
+            {
+                _disposed = true;
+            }
         }
 
         public void CreateQueue(string address)
