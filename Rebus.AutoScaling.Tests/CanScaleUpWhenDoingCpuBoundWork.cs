@@ -10,6 +10,7 @@ using Rebus.Tests.Contracts.Utilities;
 using Rebus.Transport.InMem;
 // ReSharper disable ArgumentsStyleLiteral
 // ReSharper disable RedundantArgumentDefaultValue
+// ReSharper disable AccessToDisposedClosure
 
 #pragma warning disable 1998
 
@@ -34,10 +35,7 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
         _starter = Configure.With(_activator)
             .Logging(l => l.Use(_listLoggerFactory))
             .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
-            .Options(o =>
-            {
-                o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1);
-            })
+            .Options(o => o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1))
             .Create();
 
         _workerCounter = new WorkerCounter(_activator.Bus);
@@ -86,7 +84,8 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
         _workerCounter.ReadingAdded += Console.WriteLine;
 
         var messageCount = 10;
-        var counter = new SharedCounter(messageCount);
+        
+        using var counter = new SharedCounter(messageCount);
 
         _activator.Handle<string>(async _ =>
         {
@@ -128,8 +127,6 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
     [Test]
     public async Task AutoScalingSavesTheDay_ManyMessages()
     {
-        _activator.Bus.Advanced.Workers.SetNumberOfWorkers(0);
-
         _workerCounter.ReadingAdded += Console.WriteLine;
 
         var messageCount = 1000000;

@@ -35,7 +35,12 @@ public static class AutoScalingConfigurationExtensions
             var options = c.Get<Options>();
 
             options.MaxParallelism = maxParallelism ?? maxNumberOfWorkers;
-            options.NumberOfWorkers = 1;
+
+            // don't change number of workers when it's 0! when it's zero, the bus has either not been started, or it has been stopped manually
+            if (options.NumberOfWorkers > 0)
+            {
+                options.NumberOfWorkers = 1;
+            }
 
             var transport = c.Get<ITransport>();
             var asyncTaskFactory = c.Get<IAsyncTaskFactory>();
