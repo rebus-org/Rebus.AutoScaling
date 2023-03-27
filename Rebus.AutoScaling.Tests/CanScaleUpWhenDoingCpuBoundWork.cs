@@ -21,6 +21,7 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
     BuiltinHandlerActivator _activator;
     WorkerCounter _workerCounter;
     ListLoggerFactory _listLoggerFactory;
+    IBusStarter _starter;
 
     protected override void SetUp()
     {
@@ -30,14 +31,14 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
 
         _listLoggerFactory = new ListLoggerFactory(outputToConsole: false);
 
-        Configure.With(_activator)
+        _starter = Configure.With(_activator)
             .Logging(l => l.Use(_listLoggerFactory))
             .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
             .Options(o =>
             {
                 o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1);
             })
-            .Start();
+            .Create();
 
         _workerCounter = new WorkerCounter(_activator.Bus);
 
@@ -87,7 +88,7 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
         var messageCount = 10;
         var counter = new SharedCounter(messageCount);
 
-        _activator.Handle<string>(async str =>
+        _activator.Handle<string>(async _ =>
         {
             // stall the worker thread for five seconds
             var threadId = Thread.CurrentThread.ManagedThreadId;
@@ -96,6 +97,8 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
             Console.WriteLine($"Thread {threadId} done!");
             counter.Decrement();
         });
+
+        _starter.Start();
 
         Thread.Sleep(TimeSpan.FromSeconds(3));
 
@@ -132,10 +135,9 @@ public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
         var messageCount = 1000000;
         var counter = new SharedCounter(messageCount);
 
-        _activator.Handle<string>(async str =>
-        {
-            counter.Decrement();
-        });
+        _activator.Handle<string>(async _ => counter.Decrement());
+
+        _starter.Start();
 
         Thread.Sleep(TimeSpan.FromSeconds(3));
 
