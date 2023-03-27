@@ -9,45 +9,44 @@ using Rebus.Transport.InMem;
 // ReSharper disable RedundantArgumentDefaultValue
 // ReSharper disable ArgumentsStyleLiteral
 
-namespace Rebus.AutoScaling.Tests
+namespace Rebus.AutoScaling.Tests;
+
+[TestFixture]
+public class StartupTest : FixtureBase
 {
-    [TestFixture]
-    public class StartupTest : FixtureBase
+    BuiltinHandlerActivator _activator;
+    WorkerCounter _workerCounter;
+
+    protected override void SetUp()
     {
-        BuiltinHandlerActivator _activator;
-        WorkerCounter _workerCounter;
+        _activator = new BuiltinHandlerActivator();
 
-        protected override void SetUp()
-        {
-            _activator = new BuiltinHandlerActivator();
+        Using(_activator);
 
-            Using(_activator);
+        Configure.With(_activator)
+            .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
+            .Options(o =>
+            {
+                o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1);
+            })
+            .Start();
 
-            Configure.With(_activator)
-                .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
-                .Options(o =>
-                {
-                    o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1);
-                })
-                .Start();
+        _workerCounter = new WorkerCounter(_activator.Bus);
 
-            _workerCounter = new WorkerCounter(_activator.Bus);
+        Using(_workerCounter);
+    }
 
-            Using(_workerCounter);
-        }
+    [Test]
+    public async Task StartsOutWithOneSingleWorker()
+    {
+        _workerCounter.ReadingAdded += Console.WriteLine;
 
-        [Test]
-        public async Task StartsOutWithOneSingleWorker()
-        {
-            _workerCounter.ReadingAdded += Console.WriteLine;
+        await Task.Delay(5000);
 
-            await Task.Delay(5000);
+        var averageNumberOfWorkers = _workerCounter.Readings
+            .Select(r => r.WorkersCount)
+            .Average();
 
-            var averageNumberOfWorkers = _workerCounter.Readings
-                .Select(r => r.WorkersCount)
-                .Average();
-
-            Assert.That(averageNumberOfWorkers, Is.EqualTo(1));
-        }
+        Assert.That(averageNumberOfWorkers, Is.EqualTo(1));
     }
 }

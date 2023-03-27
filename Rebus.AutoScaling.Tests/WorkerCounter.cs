@@ -5,64 +5,58 @@ using System.Linq;
 using Rebus.Bus;
 using Timer = System.Threading.Timer;
 
-namespace Rebus.AutoScaling.Tests
+namespace Rebus.AutoScaling.Tests;
+
+public class WorkerCounter : IDisposable
 {
-    public class WorkerCounter : IDisposable
+    readonly ConcurrentQueue<Reading> _readings = new();
+    readonly Timer _timer;
+    readonly IBus _bus;
+
+    public WorkerCounter(IBus bus)
     {
-        readonly IBus _bus;
-        readonly Timer _timer;
-        readonly ConcurrentQueue<Reading> _readings = new ConcurrentQueue<Reading>();
+        _bus = bus ?? throw new ArgumentNullException(nameof(bus));
+        _timer = new Timer(_ => AddReading(), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
 
-        public WorkerCounter(IBus bus)
+    public IEnumerable<Reading> Readings => _readings.ToList();
+
+    public event Action<Reading> ReadingAdded;
+
+    void AddReading()
+    {
+        var workersCount = _bus.Advanced.Workers.Count;
+        var time = DateTimeOffset.Now;
+        var reading = new Reading(time, workersCount);
+
+        _readings.Enqueue(reading);
+
+        ReadingAdded?.Invoke(reading);
+    }
+
+    public void Dispose() => _timer.Dispose();
+
+    public class Reading
+    {
+        public Reading(DateTimeOffset time, decimal workersCount)
         {
-            if (bus == null) throw new ArgumentNullException(nameof(bus));
-
-            _bus = bus;
-            _timer = new Timer(_ => AddReading(), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+            Time = time;
+            WorkersCount = workersCount;
         }
 
-        public IEnumerable<Reading> Readings => _readings.ToList();
+        public DateTimeOffset Time { get; }
+        public decimal WorkersCount { get; }
 
-        public event Action<Reading> ReadingAdded;
-
-        void AddReading()
+        public override string ToString()
         {
-            var workersCount = _bus.Advanced.Workers.Count;
-            var time = DateTimeOffset.Now;
-            var reading = new Reading(time, workersCount);
+            var bar = new string('*', (int)WorkersCount);
 
-            _readings.Enqueue(reading);
-
-            ReadingAdded?.Invoke(reading);
-        }
-
-        public void Dispose()
-        {
-            _timer.Dispose();
-        }
-
-        public class Reading
-        {
-            public Reading(DateTimeOffset time, decimal workersCount)
+            if (WorkersCount != (int) WorkersCount)
             {
-                Time = time;
-                WorkersCount = workersCount;
+                bar = bar + ".";
             }
 
-            public DateTimeOffset Time { get; }
-            public decimal WorkersCount { get; }
-
-            public override string ToString()
-            {
-                var bar = new string('*', (int)WorkersCount);
-
-                if (WorkersCount != (int) WorkersCount)
-                {
-                    bar = bar + ".";
-                }
-
-                return $"{Time:s}: {bar} ({WorkersCount:0.#})";
-            }
+            return $"{Time:s}: {bar} ({WorkersCount:0.#})";
         }
     }
 }

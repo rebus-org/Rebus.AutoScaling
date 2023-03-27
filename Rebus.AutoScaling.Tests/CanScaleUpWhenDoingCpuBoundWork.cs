@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,39 +13,39 @@ using Rebus.Transport.InMem;
 
 #pragma warning disable 1998
 
-namespace Rebus.AutoScaling.Tests
+namespace Rebus.AutoScaling.Tests;
+
+[TestFixture]
+public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
 {
-    [TestFixture]
-    public class CanScaleUpWhenDoingCpuBoundWork : FixtureBase
+    BuiltinHandlerActivator _activator;
+    WorkerCounter _workerCounter;
+    ListLoggerFactory _listLoggerFactory;
+
+    protected override void SetUp()
     {
-        BuiltinHandlerActivator _activator;
-        WorkerCounter _workerCounter;
-        ListLoggerFactory _listLoggerFactory;
+        _activator = new BuiltinHandlerActivator();
 
-        protected override void SetUp()
-        {
-            _activator = new BuiltinHandlerActivator();
+        Using(_activator);
 
-            Using(_activator);
+        _listLoggerFactory = new ListLoggerFactory(outputToConsole: false);
 
-            _listLoggerFactory = new ListLoggerFactory(outputToConsole: false);
+        Configure.With(_activator)
+            .Logging(l => l.Use(_listLoggerFactory))
+            .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
+            .Options(o =>
+            {
+                o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1);
+            })
+            .Start();
 
-            Configure.With(_activator)
-                .Logging(l => l.Use(_listLoggerFactory))
-                .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "scaling-test"))
-                .Options(o =>
-                {
-                    o.EnableAutoScaling(maxNumberOfWorkers: 10, adjustmentIntervalSeconds: 1);
-                })
-                .Start();
+        _workerCounter = new WorkerCounter(_activator.Bus);
 
-            _workerCounter = new WorkerCounter(_activator.Bus);
+        Using(_workerCounter);
+    }
 
-            Using(_workerCounter);
-        }
-
-        /*
-         
+    /*
+     
 2016-09-04T12:26:29: * (1)
 2016-09-04T12:26:30: * (1)
 2016-09-04T12:26:31: * (1)
@@ -77,92 +76,91 @@ namespace Rebus.AutoScaling.Tests
 2016-09-04T12:27:02: * (1)
 2016-09-04T12:27:03: * (1)
 2016-09-04T12:27:04: * (1)             
-             
-             
-        */
-        [Test]
-        public async Task AutoScalingSavesTheDay_SlowHandler()
+         
+         
+    */
+    [Test]
+    public async Task AutoScalingSavesTheDay_SlowHandler()
+    {
+        _workerCounter.ReadingAdded += Console.WriteLine;
+
+        var messageCount = 10;
+        var counter = new SharedCounter(messageCount);
+
+        _activator.Handle<string>(async str =>
         {
-            _workerCounter.ReadingAdded += Console.WriteLine;
+            // stall the worker thread for five seconds
+            var threadId = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"Thread {threadId} waiting... ");
+            Thread.Sleep(10000);
+            Console.WriteLine($"Thread {threadId} done!");
+            counter.Decrement();
+        });
 
-            var messageCount = 10;
-            var counter = new SharedCounter(messageCount);
+        Thread.Sleep(TimeSpan.FromSeconds(3));
 
-            _activator.Handle<string>(async str =>
-            {
-                // stall the worker thread for five seconds
-                var threadId = Thread.CurrentThread.ManagedThreadId;
-                Console.WriteLine($"Thread {threadId} waiting... ");
-                Thread.Sleep(10000);
-                Console.WriteLine($"Thread {threadId} done!");
-                counter.Decrement();
-            });
+        await Task.WhenAll(Enumerable.Range(0, messageCount)
+            .Select(number => _activator.Bus.SendLocal($"THIS IS MESSAGE {number}")));
 
-            Thread.Sleep(TimeSpan.FromSeconds(3));
+        // 10 * 10 seconds will take about 100 s to process serially - auto-scaling to the resque!!
+        counter.WaitForResetEvent(30);
 
-            await Task.WhenAll(Enumerable.Range(0, messageCount)
-                .Select(number => _activator.Bus.SendLocal($"THIS IS MESSAGE {number}")));
+        Thread.Sleep(TimeSpan.FromSeconds(13));
 
-            // 10 * 10 seconds will take about 100 s to process serially - auto-scaling to the resque!!
-            counter.WaitForResetEvent(30);
+        CleanUpDisposables();
 
-            Thread.Sleep(TimeSpan.FromSeconds(13));
+        Console.WriteLine();
+        Console.WriteLine();
+        Console.WriteLine();
+        Console.WriteLine();
+        Console.WriteLine();
 
-            CleanUpDisposables();
+        var readings = _workerCounter.Readings
+            .GroupBy(r => r.Time.RoundTo(TimeSpan.FromSeconds(1)))
+            .Select(g => new WorkerCounter.Reading(g.Key, g.Average(r => r.WorkersCount)));
 
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine();
+        Console.WriteLine(string.Join(Environment.NewLine, readings));
+    }
 
-            var readings = _workerCounter.Readings
-                .GroupBy(r => r.Time.RoundTo(TimeSpan.FromSeconds(1)))
-                .Select(g => new WorkerCounter.Reading(g.Key, g.Average(r => r.WorkersCount)));
+    [Test]
+    public async Task AutoScalingSavesTheDay_ManyMessages()
+    {
+        _activator.Bus.Advanced.Workers.SetNumberOfWorkers(0);
 
-            Console.WriteLine(string.Join(Environment.NewLine, readings));
-        }
+        _workerCounter.ReadingAdded += Console.WriteLine;
 
-        [Test]
-        public async Task AutoScalingSavesTheDay_ManyMessages()
+        var messageCount = 1000000;
+        var counter = new SharedCounter(messageCount);
+
+        _activator.Handle<string>(async str =>
         {
-            _activator.Bus.Advanced.Workers.SetNumberOfWorkers(0);
+            counter.Decrement();
+        });
 
-            _workerCounter.ReadingAdded += Console.WriteLine;
+        Thread.Sleep(TimeSpan.FromSeconds(3));
 
-            var messageCount = 1000000;
-            var counter = new SharedCounter(messageCount);
+        await Task.WhenAll(Enumerable.Range(0, messageCount)
+            .Select(number => _activator.Bus.SendLocal($"THIS IS MESSAGE {number}")));
 
-            _activator.Handle<string>(async str =>
-            {
-                counter.Decrement();
-            });
+        _activator.Bus.Advanced.Workers.SetNumberOfWorkers(1);
 
-            Thread.Sleep(TimeSpan.FromSeconds(3));
+        // 10 * 10 seconds will take about 100 s to process serially - auto-scaling to the resque!!
+        counter.WaitForResetEvent(40);
 
-            await Task.WhenAll(Enumerable.Range(0, messageCount)
-                .Select(number => _activator.Bus.SendLocal($"THIS IS MESSAGE {number}")));
+        Thread.Sleep(TimeSpan.FromSeconds(8));
 
-            _activator.Bus.Advanced.Workers.SetNumberOfWorkers(1);
+        CleanUpDisposables();
 
-            // 10 * 10 seconds will take about 100 s to process serially - auto-scaling to the resque!!
-            counter.WaitForResetEvent(40);
+        Console.WriteLine();
+        Console.WriteLine();
+        Console.WriteLine();
+        Console.WriteLine();
+        Console.WriteLine();
 
-            Thread.Sleep(TimeSpan.FromSeconds(8));
+        var readings = _workerCounter.Readings
+            .GroupBy(r => r.Time.RoundTo(TimeSpan.FromSeconds(1)))
+            .Select(g => new WorkerCounter.Reading(g.Key, g.Average(r => r.WorkersCount)));
 
-            CleanUpDisposables();
-
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine();
-            Console.WriteLine();
-
-            var readings = _workerCounter.Readings
-                .GroupBy(r => r.Time.RoundTo(TimeSpan.FromSeconds(1)))
-                .Select(g => new WorkerCounter.Reading(g.Key, g.Average(r => r.WorkersCount)));
-
-            Console.WriteLine(string.Join(Environment.NewLine, readings));
-        }
+        Console.WriteLine(string.Join(Environment.NewLine, readings));
     }
 }
