@@ -19,5 +19,5 @@
 ## 4.1.0
 * Make the adjustment interval (the interval with which a worker is either added/removed, depending on activity level) configurable. Default is 10 s.
 
-## 5.0.0-alpha02
+## 5.0.0-alpha03
 * Update to Rebus 8
